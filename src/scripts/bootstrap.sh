@@ -7,6 +7,11 @@ CSP="$2"
 HOSTNAME="$3"
 PUBLIC_IP="$4"			# openstack
 NETWORK_CNI="$5"
+SERVICE_TYPE="$6"       # mcks or cmks
+
+if [ "${SERVICE_TYPE}" != "cmks" ]; then
+    SERVICE_TYPE="mcks"
+fi
 
 # hostname
 sudo hostnamectl set-hostname ${HOSTNAME}
@@ -106,6 +111,8 @@ if [ "${CSP}" != "openstack" ]; then
 	PUBLIC_IP='$(dig +short myip.opendns.com @resolver1.opendns.com)'
 fi
 
+if [ "${SERVICE_TYPE}" == "mcks" ]; then
+
 if [ "${NETWORK_CNI}" == "kilo" ]; then 
 # install wireguard
 sudo add-apt-repository -y ppa:wireguard/wireguard
@@ -170,3 +177,5 @@ WantedBy=kubelet.service
 EOF'
 sudo systemctl daemon-reload
 sudo systemctl enable mcks-bootstrap
+
+fi # ${SERVICE_TYPE} == "mcks"
