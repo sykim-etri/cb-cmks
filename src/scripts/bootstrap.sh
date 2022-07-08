@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# MYHOST=$(hostnamectl --static) && MYIP=$(ip a s ens3 | awk -F"[/ ]+" '/inet / {print $3}') && ./bootstrap.sh 1.23.8-00 openstack $MYHOST $MYIP canal
+
 K8S_VERSION="$1"	# curl https://packages.cloud.google.com/apt/dists/kubernetes-xenial/main/binary-amd64/Packages
 CSP="$2"
 HOSTNAME="$3"

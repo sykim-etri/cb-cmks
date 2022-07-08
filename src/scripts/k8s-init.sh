@@ -1,8 +1,18 @@
 #!/bin/bash
+
+# MYIP=$(ip a s ens3 | awk -F"[/ ]+" '/inet / {print $3}') && ./k8s-init.sh 10.244.0.0/16 10.96.0.0/12 cluster.local $MYIP
+# When run this script in k8s nodes, edit controlPlaneEndpoint's port(9998)
+
 # kubeadm-config 정의
 # - controlPlaneEndpoint 에 LB 지정 (9998 포트)
 # - advertise-address 에 Public IP 지정
 cat << EOF > kubeadm-config.yaml
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: InitConfiguration
+nodeRegistration:
+  kubeletExtraArgs:
+    cloud-provider: "external"
+---
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
 imageRepository: k8s.gcr.io
@@ -20,7 +30,13 @@ networking:
   dnsDomain: $3
   podSubnet: $1
   serviceSubnet: $2
-controllerManager: {}
+controllerManager:
+  extraVolumes:
+  - name: cloud-config
+    hostPath: /etc/kubernetes/cloud-config
+    mountPath: /etc/kubernetes/cloud-config
+    readOnly: true
+    pathType: File
 scheduler: {}
 EOF
 
