@@ -30,13 +30,7 @@ networking:
   dnsDomain: $3
   podSubnet: $1
   serviceSubnet: $2
-controllerManager:
-  extraVolumes:
-  - name: cloud-config
-    hostPath: /etc/kubernetes/cloud-config
-    mountPath: /etc/kubernetes/cloud-config
-    readOnly: true
-    pathType: File
+controllerManager: {}
 scheduler: {}
 EOF
 
