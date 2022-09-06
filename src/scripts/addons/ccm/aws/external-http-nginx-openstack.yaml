@@ -1,0 +1,36 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-http-nginx-deployment
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: external-http-nginx-service
+  annotations:
+    service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
+    loadbalancer.openstack.org/subnet-id: "d0beb6de-64fc-4af9-aa8b-91b4f2db097c"
+spec:
+  selector:
+    app: nginx
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
