@@ -32,6 +32,7 @@ const (
 	SetupNetworkCNIFailedReason               = ClusterReason("SetupNetworkCNIFailedReason")
 	JoinControlPlaneFailedReason              = ClusterReason("JoinControlPlaneFailedReason")
 	JoinWorkerFailedReason                    = ClusterReason("JoinWorkerFailedReason")
+	SetupCCMFailedReason                      = ClusterReason("SetupCCMFailedReason")
 )
 
 type Model struct {
@@ -44,18 +45,20 @@ type ListModel struct {
 
 type Cluster struct {
 	Model
-	Status          ClusterStatus  `json:"status"`
-	MCIS            string         `json:"mcis"`
-	Namespace       string         `json:"namespace"`
-	Version         string         `json:"k8sVersion"`
-	ClusterConfig   string         `json:"clusterConfig"`
-	CpLeader        string         `json:"cpLeader"`
-	NetworkCni      app.NetworkCni `json:"networkCni" enums:"canal,kilo"`
-	Label           string         `json:"label"`
-	InstallMonAgent string         `json:"installMonAgent" example:"no" default:"yes"`
-	Description     string         `json:"description"`
-	CreatedTime     string         `json:"createdTime" example:"2022-01-02T12:00:00Z" default:""`
-	Nodes           []*Node        `json:"nodes"`
+	Status          ClusterStatus   `json:"status"`
+	MCIS            string          `json:"mcis"`
+	Namespace       string          `json:"namespace"`
+	Version         string          `json:"k8sVersion"`
+	ClusterConfig   string          `json:"clusterConfig"`
+	CpLeader        string          `json:"cpLeader"`
+	NetworkCni      app.NetworkCni  `json:"networkCni" enums:"canal,kilo,flannel,calico"`
+	Label           string          `json:"label"`
+	InstallMonAgent string          `json:"installMonAgent" example:"no" default:"yes"`
+	Description     string          `json:"description"`
+	CreatedTime     string          `json:"createdTime" example:"2022-01-02T12:00:00Z" default:""`
+	ServiceType     app.ServiceType `json:"serviceType" enums:"multi,single" default:"multi"`
+	Nodes           []*Node         `json:"nodes"`
+	//CloudConfig     []*app.KeyValue `json:"cloudConfig,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -76,6 +79,7 @@ type Node struct {
 	clusterName string
 	Credential  string   `json:"credential"`
 	PublicIP    string   `json:"publicIp"`
+	PrivateIP   string   `json:"privateIp"`
 	Role        app.ROLE `json:"role" enums:"control-plane,worker"`
 	Spec        string   `json:"spec"`
 	Csp         app.CSP  `json:"csp" enums:"aws,gcp,azure,alibaba,tencent,openstack,ibm,cloudit"`

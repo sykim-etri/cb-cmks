@@ -99,11 +99,62 @@ func (self *Machine) ConnectionTest() error {
 	return nil
 }
 
+func (self *Machine) GetFullName(nodeName string) (string, error) {
+	if self.CSP == app.CSP_AWS {
+		return awsGetLocalHostname()
+		//		return self.getMetaDataLocalHostname()
+	} else if self.CSP == app.CSP_OPENSTACK {
+		return openstackGetServerName(nodeName)
+		/*
+			authOpts := gophercloud.AuthOptions{
+				IdentityEndpoint: "http://129.254.188.235/identity",
+				Username:         "admin",
+				Password:         "secret00secret",
+				DomainName:       "Default",
+				TenantName:       "demo",
+			}
+
+			//ao, err := openstack.AuthOptionsFromEnv()
+			provider, err := openstack.AuthenticatedClient(authOpts)
+			if err != nil {
+				return "", errors.New(fmt.Sprintf("Failed to authenticate openstack (node=%s, err=%v)", name, err))
+			}
+
+			epOpts := gophercloud.EndpointOpts{Region: "RegionOne"}
+
+			client, err := openstack.NewComputeV2(provider, epOpts)
+			if err != nil {
+				return "", errors.New(fmt.Sprintf("Failed to get the openstack client (node=%s, err=%v)", name, err))
+			}
+			server, err := getServerByName(client, name)
+			if err != nil {
+				return "", errors.New(fmt.Sprintf("Failed to get the server by name (node=%s, err=%v)", name, err))
+			}
+
+			return server.Name, nil
+		*/
+	} else {
+		return "", errors.New(fmt.Sprintf("Failed to get the fullname: no CSP (node=%s)", nodeName))
+	}
+}
+
+/*
+func (self *Machine) getMetaDataLocalHostname() (string, error) {
+	var err error
+	var output string
+	if output, err = self.executeSSH("curl http://169.254.169.254/latest/meta-data/local-hostname"); err != nil {
+		return "", errors.New(fmt.Sprintf("Failed to get meta-data/local-hostname. (node=%s, err=%v)", self.Name, err))
+	}
+
+	return output, nil
+}
+*/
+
 /* bootstrap */
-func (self *Machine) bootstrap(networkCni app.NetworkCni, k8sVersion string) error {
+func (self *Machine) bootstrap(networkCni app.NetworkCni, k8sVersion string, serviceType app.ServiceType) error {
 
 	//verfiy
-	if self.CSP == "" || self.Region == "" || self.Name == "" || self.PublicIP == "" {
+	if self.CSP == "" || self.Region == "" || self.Name == "" || self.PublicIP == "" || serviceType == "" {
 		return errors.New(fmt.Sprintf("There are mandatory fields. (node=%s, role=%s, csp=%s, region=%s, publicip=%s)", self.Name, self.Role, self.CSP, self.Region, self.PublicIP))
 	}
 
@@ -115,13 +166,37 @@ func (self *Machine) bootstrap(networkCni app.NetworkCni, k8sVersion string) err
 	//  - list-up for control-plane
 	if self.Role == app.CONTROL_PLANE {
 		sourceFiles = append(sourceFiles, "haproxy.sh", "k8s-init.sh")
-		if _, err := self.executeSSH("mkdir -p %s/addons/%s", REMOTE_TARGET_PATH, networkCni); err != nil {
-			return errors.New(fmt.Sprintf("Failed to create a addon directory. (node=%s, path='%s')", self.Name, "addons/"+networkCni))
+		if _, err := self.executeSSH("mkdir -p %s/addons/cni/%s", REMOTE_TARGET_PATH, networkCni); err != nil {
+			return errors.New(fmt.Sprintf("Failed to create a addon directory. (node=%s, path='%s')", self.Name, "addons/cni/"+networkCni))
 		}
-		if networkCni == app.NETWORKCNI_CANAL {
-			sourceFiles = append(sourceFiles, CNI_CANAL_FILE)
-		} else {
-			sourceFiles = append(sourceFiles, CNI_KILO_CRDS_FILE, CNI_KILO_KUBEADM_FILE, CNI_KILO_FLANNEL_FILE)
+
+		if serviceType != app.ST_SINGLE {
+			if networkCni == app.NETWORKCNI_CANAL {
+				sourceFiles = append(sourceFiles, CNI_CANAL_FILE)
+			} else {
+				sourceFiles = append(sourceFiles, CNI_KILO_CRDS_FILE, CNI_KILO_KUBEADM_FILE, CNI_KILO_FLANNEL_FILE)
+			}
+		} else { // serviceType == app.ST_SINGLE
+			if networkCni == app.NETWORKCNI_FLANNEL {
+				sourceFiles = append(sourceFiles, CNI_FLANNEL_FILE)
+			} else {
+			}
+
+			sourceFiles = append(sourceFiles, "gen-cloud-config.sh")
+			if _, err := self.executeSSH("mkdir -p %s/addons/ccm/%s", REMOTE_TARGET_PATH, self.CSP); err != nil {
+				return errors.New(fmt.Sprintf("Failed to create a addon directory. (node=%s, path='%s')", self.Name, "addons/ccm/"+self.CSP))
+			}
+
+			if self.CSP == app.CSP_AWS {
+				sourceFiles = append(sourceFiles,
+					CCM_AWS_ROLE_SA_FILE,
+					CCM_AWS_DS_FILE)
+			} else if self.CSP == app.CSP_OPENSTACK {
+				sourceFiles = append(sourceFiles,
+					CCM_OPENSTACK_ROLE_BINDINGS_FILE,
+					CCM_OPENSTACK_ROLES_FILE,
+					CCM_OPENSTACK_DS_FILE)
+			}
 		}
 	}
 
@@ -135,14 +210,22 @@ func (self *Machine) bootstrap(networkCni app.NetworkCni, k8sVersion string) err
 	}
 
 	// 2. execute bootstrap.sh
-	if output, err := self.executeSSH(REMOTE_TARGET_PATH+"/bootstrap.sh %s %s %s %s %s", k8sVersion, self.CSP, self.Name, self.PublicIP, networkCni); err != nil {
+
+	var hostName string = self.Name
+	if serviceType == app.ST_SINGLE {
+		var err error
+		if hostName, err = self.GetFullName(self.Name); err != nil {
+			return err
+		}
+	}
+
+	if output, err := self.executeSSH(REMOTE_TARGET_PATH+"/bootstrap.sh %s %s %s %s %s %s", k8sVersion, self.CSP, hostName, self.PublicIP, networkCni, serviceType); err != nil {
 		return errors.New(fmt.Sprintf("Failed to execute bootstrap.sh (node=%s)", self.Name))
 	} else if !strings.Contains(output, "kubectl set on hold") {
 		return errors.New(fmt.Sprintf("Failed to execute bootstrap.sh shell. (node=%s, cause='kubectl not set on hold')", self.Name))
 	}
 
 	return nil
-
 }
 
 /* control-plane join */
@@ -196,6 +279,7 @@ func (self *Machine) NewNode() *model.Node {
 		Spec:        self.Spec,
 		Csp:         self.CSP,
 		PublicIP:    self.PublicIP,
+		PrivateIP:   self.PrivateIP,
 		CspLabel:    fmt.Sprintf("%s=%s", app.LABEL_KEY_CSP, string(self.CSP)),
 		RegionLabel: fmt.Sprintf("%s=%s", app.LABEL_KEY_REGION, self.Region),
 		ZoneLabel:   fmt.Sprintf("%s=%s", app.LABEL_KEY_ZONE, self.Zone),

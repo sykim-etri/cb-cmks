@@ -5,6 +5,7 @@ type ROLE string
 type Kind string
 type NetworkCni string
 type StatusCode int
+type ServiceType string
 
 const (
 	CSP_AWS       CSP = "aws"
@@ -29,8 +30,10 @@ const (
 	STATUS_SUCCESS  = 200
 	STATUS_NOTFOUND = 404
 
-	NETWORKCNI_KILO  NetworkCni = "kilo"
-	NETWORKCNI_CANAL NetworkCni = "canal"
+	NETWORKCNI_KILO    NetworkCni = "kilo"
+	NETWORKCNI_CANAL   NetworkCni = "canal"
+	NETWORKCNI_FLANNEL NetworkCni = "flannel"
+	NETWORKCNI_CALICO  NetworkCni = "calico"
 
 	POD_CIDR       = "10.244.0.0/16"
 	SERVICE_CIDR   = "10.96.0.0/12"
@@ -40,8 +43,13 @@ const (
 	LABEL_KEY_REGION = "topology.kubernetes.io/region"
 	LABEL_KEY_ZONE   = "topology.kubernetes.io/zone"
 
+	LABEL_KEY_CLUSTER = "kubernetes.io/cluster"
+
 	MCIS_LABEL       = "mcks"
 	MCIS_SYSTEMLABEL = "Managed by MCKS"
+
+	ST_MULTI  ServiceType = "multi"
+	ST_SINGLE ServiceType = "single"
 )
 
 type Status struct {
@@ -54,6 +62,7 @@ type ClusterReq struct {
 	Name            string           `json:"name" example:"cluster-01"`
 	ControlPlane    []NodeSetReq     `json:"controlPlane"`
 	Worker          []NodeSetReq     `json:"worker"`
+	ServiceType     ServiceType      `json:"serviceType" enums:"multi,single" default:"multi"`
 	Config          ClusterConfigReq `json:"config"`
 	Label           string           `json:"label"`
 	InstallMonAgent string           `json:"installMonAgent" example:"no" default:"yes"`
@@ -74,9 +83,16 @@ type NodeSetReq struct {
 type ClusterConfigReq struct {
 	Kubernetes ClusterConfigKubernetesReq `json:"kubernetes"`
 }
+
 type ClusterConfigKubernetesReq struct {
-	NetworkCni       NetworkCni `json:"networkCni" example:"kilo" enums:"canal,kilo" default1:"kilo"`
-	PodCidr          string     `json:"podCidr" example:"10.244.0.0/16"`
-	ServiceCidr      string     `json:"serviceCidr" example:"10.96.0.0/12"`
-	ServiceDnsDomain string     `json:"serviceDnsDomain" example:"cluster.local"`
+	NetworkCni       NetworkCni  `json:"networkCni" example:"kilo" enums:"canal,kilo,flannel,calico" default1:"kilo"`
+	PodCidr          string      `json:"podCidr" example:"10.244.0.0/16"`
+	ServiceCidr      string      `json:"serviceCidr" example:"10.96.0.0/12"`
+	ServiceDnsDomain string      `json:"serviceDnsDomain" example:"cluster.local"`
+	CloudConfig      []*KeyValue `json:"cloudConfig,omitempty"`
+}
+
+type KeyValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }

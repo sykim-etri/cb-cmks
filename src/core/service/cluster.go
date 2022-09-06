@@ -81,6 +81,14 @@ func CreateCluster(namespace string, minorversion string, patchversion string, r
 			}
 		}
 	}
+	if req.ServiceType == app.ST_SINGLE {
+		connection := req.ControlPlane[0].Connection
+		for _, worker := range req.Worker {
+			if worker.Connection != connection {
+				return nil, errors.New(fmt.Sprintf("All nodes must be the same connection config. (connection=%s)", worker.Connection))
+			}
+		}
+	}
 
 	clusterName := req.Name
 	mcisName := clusterName
@@ -109,6 +117,7 @@ func CreateCluster(namespace string, minorversion string, patchversion string, r
 	cluster.Label = req.Label
 	cluster.InstallMonAgent = req.InstallMonAgent
 	cluster.Description = req.Description
+	cluster.ServiceType = req.ServiceType
 	provisioner := provision.NewProvisioner(cluster)
 
 	//update phase(provisioning)
@@ -128,6 +137,8 @@ func CreateCluster(namespace string, minorversion string, patchversion string, r
 	}
 	logger.Infof("[%s.%s] MCIS validation has been completed. (mcis=%s)", namespace, clusterName, mcisName)
 
+	var cpLeaderCSP app.CSP
+
 	// create a MCIR - "vpc, f/w, sshkey, image, spec" - with vlidations
 	mcir := NewMCIR(namespace, app.CONTROL_PLANE, req.ControlPlane[0])
 	reason, msg := mcir.CreateIfNotExist()
@@ -140,6 +151,7 @@ func CreateCluster(namespace string, minorversion string, patchversion string, r
 			name := lang.GenerateNewNodeName(string(app.CONTROL_PLANE), i+1)
 			if i == 0 {
 				cluster.CpLeader = name
+				cpLeaderCSP = mcir.csp
 			}
 			mcis.VMs = append(mcis.VMs, mcir.NewVM(namespace, name, mcisName))
 			provisioner.AppendControlPlaneMachine(name, mcir.csp, mcir.region, mcir.zone, mcir.credential)
@@ -256,6 +268,95 @@ func CreateCluster(namespace string, minorversion string, patchversion string, r
 		return nil, errors.New(cluster.Status.Message)
 	}
 	logger.Infof("[%s.%s] CNI installation has been completed.", namespace, clusterName)
+
+	// kubernetes provision : deploy cloud-controller-manager when service_type is single
+	if cluster.ServiceType == app.ST_SINGLE {
+
+		// create tags for related resources on AWS
+		if cpLeaderCSP == app.CSP_AWS {
+			err := awsPrepareCCM(clusterName, mcis.VMs, provisioner)
+			if err != nil {
+				cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to prepare cloud-controller-manager: %v", err))
+				cleanUpCluster(*cluster, mcis)
+				return nil, errors.New(cluster.Status.Message)
+			}
+			/*
+				cfg, err := config.LoadDefaultConfig(context.TODO())
+				if err != nil {
+					cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to install cloud-controller-manager. (cloud-config=%s)", req.Config.Kubernetes.CloudConfig))
+					cleanUpCluster(*cluster, mcis)
+					return nil, errors.New(cluster.Status.Message)
+				}
+				//			aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""))
+				svc := ec2.NewFromConfig(cfg)
+
+				at, err := newAWSTags(clusterName)
+				if err != nil {
+					cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to install cloud-controller-manager. (cloud-config=%s)", req.Config.Kubernetes.CloudConfig))
+					cleanUpCluster(*cluster, mcis)
+					return nil, errors.New(cluster.Status.Message)
+				}
+
+				var awsErr error
+				for _, vm := range mcis.VMs {
+					var awsRole string = "sykim-k8s-worker-role-for-ccm"
+					_, exists := provisioner.ControlPlaneMachines[vm.Name]
+					if exists {
+						awsRole = "sykim-k8s-control-plane-role-for-ccm"
+					}
+
+					input := &ec2.AssociateIamInstanceProfileInput{
+						IamInstanceProfile: &types.IamInstanceProfileSpecification{
+							Name: &awsRole,
+						},
+						InstanceId: &vm.CspViewVmDetail.IId.SystemId,
+					}
+
+					var result *ec2.AssociateIamInstanceProfileOutput
+					result, awsErr = svc.AssociateIamInstanceProfile(context.TODO(), input)
+					if awsErr != nil {
+						break
+					}
+					logger.Infof("[%s.%s] AssociateIamInstanceProfile Result(%s)", namespace, clusterName, result)
+
+					//legacyTags := make(map[string]string)
+					//legacyTags[TagNameKubernetesClusterLegacy] = clusterName
+					awsErr = at.createTags(svc, vm.CspViewVmDetail.IId.SystemId, "owned", nil)
+					if awsErr != nil {
+						break
+					}
+
+					for _, sgid := range vm.CspViewVmDetail.SecurityGroupIIds {
+						awsErr = at.createTags(svc, sgid.SystemId, "owned", nil)
+						if awsErr != nil {
+							break
+						}
+					}
+					if awsErr != nil {
+						break
+					}
+
+					awsErr = at.createTags(svc, vm.CspViewVmDetail.SubnetIID.SystemId, "owned", nil)
+					if awsErr != nil {
+						break
+					}
+				}
+				if awsErr != nil {
+					cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to install cloud-controller-manager. (cloudConfig=%s)", req.Config.Kubernetes.CloudConfig))
+					cleanUpCluster(*cluster, mcis)
+					return nil, errors.New(cluster.Status.Message)
+				}
+			*/
+		}
+
+		// deploy cloud-controller-manager
+		if err = provisioner.InstallCcm(); err != nil {
+			cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to install cloud-controller-manager. (cloudConfig=%s)", req.Config.Kubernetes.CloudConfig))
+			cleanUpCluster(*cluster, mcis)
+			return nil, errors.New(cluster.Status.Message)
+		}
+		logger.Infof("[%s.%s] CCM installation has been completed.", namespace, clusterName)
+	}
 
 	// save nodes metadata & update status
 	for _, node := range cluster.Nodes {

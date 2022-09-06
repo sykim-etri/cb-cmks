@@ -11,6 +11,8 @@ replace (
 
 require (
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
+	github.com/aws/aws-sdk-go-v2/config v1.17.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.54.0
 	github.com/beego/beego/v2 v2.0.2
 	github.com/cloud-barista/cb-log v0.5.0
 	github.com/cloud-barista/cb-spider v0.5.0
@@ -21,6 +23,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v4 v4.1.0
 	github.com/golang/protobuf v1.5.2
+	github.com/gophercloud/gophercloud v0.18.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/labstack/echo/v4 v4.6.1
@@ -36,4 +39,5 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/grpc v1.42.0
 	gopkg.in/yaml.v2 v2.4.0
+	k8s.io/apimachinery v0.22.2
 )

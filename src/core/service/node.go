@@ -2,6 +2,7 @@ package service
 
 import (
 	//"context"
+
 	"errors"
 	"fmt"
 	"time"
@@ -86,6 +87,19 @@ func AddNode(namespace string, clusterName string, req *app.NodeReq) (*model.Nod
 
 	mcisName := cluster.MCIS
 
+	if cluster.ServiceType == app.ST_SINGLE {
+		if len(mcis.VMs) > 0 {
+			connection := mcis.VMs[0].Config
+			for _, worker := range req.Worker {
+				if worker.Connection != connection {
+					return nil, errors.New(fmt.Sprintf("The new node must be the same connection config. (connection=%s)", worker.Connection))
+				}
+			}
+		} else {
+			return nil, errors.New(fmt.Sprintf("There is no VMs. (cluster=%s)", clusterName))
+		}
+	}
+
 	// get a provisioner
 	provisioner := provision.NewProvisioner(cluster)
 
@@ -95,6 +109,8 @@ func AddNode(namespace string, clusterName string, req *app.NodeReq) (*model.Nod
 		return nil, errors.New(fmt.Sprintf("failed to get join-command (cause='%v')", err))
 	}
 	logger.Infof("[%s.%s] Worker join-command inquiry has been completed. (command=%s)", namespace, clusterName, workerJoinCmd)
+
+	var workerCSP app.CSP
 
 	// create a MCIR & MCIS-vm
 	idx := cluster.NextNodeIndex(app.WORKER)
@@ -107,6 +123,9 @@ func AddNode(namespace string, clusterName string, req *app.NodeReq) (*model.Nod
 		} else {
 			for i := 0; i < mcir.vmCount; i++ {
 				name := lang.GenerateNewNodeName(string(app.WORKER), idx)
+				if i == 0 {
+					workerCSP = mcir.csp
+				}
 				vm := mcir.NewVM(namespace, name, mcisName)
 				if err := vm.POST(); err != nil {
 					cleanUpNodes(*provisioner)
@@ -148,11 +167,82 @@ func AddNode(namespace string, clusterName string, req *app.NodeReq) (*model.Nod
 	}
 	logger.Infof("[%s.%s] Woker-nodes join has been completed.", namespace, clusterName)
 
+	/* FIXME: after joining, check the worker is ready */
+
 	// assign node labels (topology.cloud-barista.github.io/csp , topology.kubernetes.io/region, topology.kubernetes.io/zone)
 	if err = provisioner.AssignNodeLabelAnnotation(); err != nil {
 		logger.Warnf("[%s.%s] Failed to assign node labels (cause='%v')", namespace, clusterName, err)
 	} else {
 		logger.Infof("[%s.%s] Node label assignment has been completed.", namespace, clusterName)
+	}
+
+	// kubernetes provisioning : add some actions for cloud-controller-manager
+	if provisioner.Cluster.ServiceType == app.ST_SINGLE {
+		if workerCSP == app.CSP_AWS {
+			err := awsPrepareCCM(clusterName, vms, provisioner)
+			if err != nil {
+				cleanUpNodes(*provisioner)
+				return nil, errors.New(fmt.Sprintf("Failed to add node entity: %v)", err))
+			}
+
+			/*
+				cfg, err := config.LoadDefaultConfig(context.TODO())
+				if err != nil {
+					cleanUpNodes(*provisioner)
+					return nil, errors.New(fmt.Sprintf("Failed to add node entity. (cause='%v')", err))
+				}
+				svc := ec2.NewFromConfig(cfg)
+
+				at, err := newAWSTags(clusterName)
+				if err != nil {
+					cleanUpNodes(*provisioner)
+					return nil, errors.New(fmt.Sprintf("Failed to add node entity. (cause='%v')", err))
+				}
+
+				var awsErr error
+				for _, vm := range vms {
+					var awsRole string = "sykim-k8s-worker-role-for-ccm"
+
+					input := &ec2.AssociateIamInstanceProfileInput{
+						IamInstanceProfile: &types.IamInstanceProfileSpecification{
+							Name: &awsRole,
+						},
+						InstanceId: &vm.CspViewVmDetail.IId.SystemId,
+					}
+
+					var result *ec2.AssociateIamInstanceProfileOutput
+					result, awsErr = svc.AssociateIamInstanceProfile(context.TODO(), input)
+					if awsErr != nil {
+						break
+					}
+					logger.Infof("[%s.%s] AssociateIamInstanceProfile Result(%s)", namespace, clusterName, result)
+
+					awsErr = at.createTags(svc, vm.CspViewVmDetail.IId.SystemId, "owned", legacyTags)
+					if awsErr != nil {
+						break
+					}
+
+					for _, sgid := range vm.CspViewVmDetail.SecurityGroupIIds {
+						awsErr = at.createTags(svc, sgid.SystemId, "owned", nil)
+						if awsErr != nil {
+							break
+						}
+					}
+					if awsErr != nil {
+						break
+					}
+
+					awsErr = at.createTags(svc, vm.CspViewVmDetail.SubnetIID.SystemId, "owned", nil)
+					if awsErr != nil {
+						break
+					}
+				}
+				if awsErr != nil {
+					cleanUpNodes(*provisioner)
+					return nil, errors.New(fmt.Sprintf("Failed to add node entity. (cause='%v')", err))
+				}
+			*/
+		}
 	}
 
 	// save nodes metadata & update status
@@ -195,10 +285,19 @@ func RemoveNode(namespace string, clusterName string, nodeName string) (*app.Sta
 	if exists := cluster.ExistsNode(nodeName); !exists {
 		return app.NewStatus(app.STATUS_NOTFOUND, fmt.Sprintf("Could not be found a node-entity '%s'", nodeName)), nil
 	}
+
+	// get a MCIS
+	mcis := tumblebug.NewMCIS(namespace, cluster.MCIS)
+	if exists, err := mcis.GET(); err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, errors.New(fmt.Sprintf("Can't be found a MCIS '%s'.", cluster.MCIS))
+	}
 	logger.Infof("[%s.%s] The inquiry has been completed..", namespace, clusterName)
 
 	// get a provisioner
 	provisioner := provision.NewProvisioner(cluster)
+
 	// delete node (kubernetes) & vm (mcis)
 	if err := provisioner.DrainAndDeleteNode(nodeName); err != nil {
 		return nil, err
@@ -222,6 +321,7 @@ func cleanUpNodes(provisioner provision.Provisioner) {
 			if node.Name == nodeName {
 				node.Credential = ""
 				node.PublicIP = ""
+				node.PrivateIP = ""
 				existNode = true
 				break
 			}

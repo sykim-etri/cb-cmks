@@ -9,6 +9,8 @@ import (
 	"github.com/cloud-barista/cb-mcks/src/core/app"
 	"github.com/cloud-barista/cb-mcks/src/core/tumblebug"
 	"github.com/cloud-barista/cb-mcks/src/utils/lang"
+
+	logger "github.com/sirupsen/logrus"
 )
 
 const (
@@ -104,8 +106,10 @@ func getCSPImageId(csp app.CSP, configName string, region *tumblebug.Region) (st
 		}
 
 		for _, image := range lookupImages.Images {
-			id := strings.ToLower(lang.GetOnlyLettersAndNumbers(image.IId.NameId))
-			if strings.Contains(id, "ubuntu") && strings.Contains(id, "1804") {
+			guestos := strings.ToLower(lang.GetOnlyLettersAndNumbers(image.GuestOS))
+			logger.Infof("[%s.%s] lookuped image is (ID=%s, GuestOS=%s)", csp, configName, image.IId.NameId, image.GuestOS)
+			//if strings.Contains(id, "ubuntu") && strings.Contains(id, "1804") {
+			if strings.Contains(guestos, "ubuntu") && strings.Contains(guestos, "1804") {
 				return image.IId.NameId, nil
 			}
 		}
