@@ -2,8 +2,8 @@
 # -----------------------------------------------------------------
 # usage
 if [ "$#" -lt 1 ]; then 
-	echo "./cluster-create.sh <namespace> <clsuter name>"
-	echo "./cluster-create.sh cb-mcks-ns cluster-01"
+	echo "./cluster-create.sh <namespace> <clsuter name> <service type>"
+	echo "./cluster-create.sh cb-mcks-ns cluster-01 <multi or single>"
 	exit 0; 
 fi
 
@@ -30,6 +30,13 @@ if [ "${v_CLUSTER_NAME}" == "" ]; then
 fi
 if [ "${v_CLUSTER_NAME}" == "" ]; then echo "[ERROR] missing <cluster name>"; exit -1; fi
 
+# 3. Service Type
+if [ "$#" -gt 2  ]; then v_SERVICE_TYPE="$3"; else	v_SERVICE_TYPE="${SERVICE_TYPE}"; fi
+if [ "${v_SERVICE_TYPE}" == ""  ]; then
+	read -e -p "Service Type  ? : "  v_SERVICE_TYPE
+fi
+if [ "${v_SERVICE_TYPE}" == ""  ]; then echo "[ERROR] missing <service type>"; exit -1; fi
+
 
 c_URL_MCKS_NS="${c_URL_MCKS}/ns/${v_NAMESPACE}"
 
@@ -40,40 +47,83 @@ echo ""
 echo "[INFO]"
 echo "- Namespace                  is '${v_NAMESPACE}'"
 echo "- Cluster name               is '${v_CLUSTER_NAME}'"
-
+echo "- Service type               is '${v_SERVICE_TYPE}'"
 
 # ------------------------------------------------------------------------------
 # Create a cluster
 create() {
 
 	if [ "$MCKS_CALL_METHOD" == "REST" ]; then
+		v_CLUSTER_CONFIG_REQ=$(cat << EOREQ
+			"config": {
+				"kubernetes": {
+					"networkCni": "flannel",
+					"podCidr": "10.244.0.0/16",
+					"serviceCidr": "10.96.0.0/12",
+					"serviceDnsDomain": "cluster.local"
+EOREQ
+			);
 
-		resp=$(curl -sX POST ${c_URL_MCKS_NS}/clusters -H "${c_CT}" -d @- <<EOF
+                if [ "$v_SERVICE_TYPE" != "single" ]; then
+                        v_CLUSTER_CONFIG_REQ+=$(cat << EOREQ
+				}
+			}
+EOREQ
+			);
+
+		else
+			v_CLUSTER_CONFIG_REQ+=$(cat << EOREQ
+					,
+					"cloudConfig": [
+						{
+							"key": "auth-url",
+							"value": "http://129.254.188.235/identity"
+						},
+						{
+							"key": "username",
+							"value": "admin"
+						},
+						{
+							"key": "password",
+							"value": "secret00secret"
+						},
+						{
+							"key": "domain-name",
+							"value": "default"
+						},
+						{
+							"key": "tenant-name",
+							"value": "demo"
+						}
+					]
+				}
+			}
+EOREQ
+			);
+		fi
+
+		#echo "v_CLUSTER_CONFIG_REQ: "${v_CLUSTER_CONFIG_REQ}
+		#echo ${REQ} | jq
+		resp=$(curl -sX POST ${c_URL_MCKS_NS}/clusters?minorversion=1.23 -H "${c_CT}" -d @- <<EOF
 		{
 			"name": "${v_CLUSTER_NAME}",
 			"label": "",
 			"installMonAgent": "",
 			"description": "",
-			"config": {
-				"kubernetes": {
-					"networkCni": "canal",
-					"podCidr": "10.244.0.0/16",
-					"serviceCidr": "10.96.0.0/12",
-					"serviceDnsDomain": "cluster.local"
-				}
-			},
+			"serviceType": "${v_SERVICE_TYPE}",
+			${v_CLUSTER_CONFIG_REQ},
 			"controlPlane": [
 				{
-					"connection": "config-azure-koreacentral",
-					"count": 3,
-					"spec": "Standard_B2s"
+					"connection": "config-openstack-regionone",
+					"count": 1,
+					"spec": "ds4G"
 				}
 			],
 			"worker": [
 				{
-					"connection": "config-ibm-jp-tok",
-					"count": 1,
-					"spec": "bx2-2x8"
+					"connection": "config-openstack-regionone",
+					"count": 2,
+					"spec": "ds4G"
 				}
 			]
 		}

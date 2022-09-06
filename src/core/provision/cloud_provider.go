@@ -10,21 +10,11 @@ import (
 	"github.com/gophercloud/gophercloud/pagination"
 )
 
-func awsGetLocalHostname() (string, error) {
-	// curl http://169.254.169.254/latest/meta-data/local-hostname
-	return "", nil
+func awsGetLocalHostname(m *Machine) (string, error) {
+	return m.executeSSH("curl http://169.254.169.254/latest/meta-data/local-hostname")
 }
 
 func openstackGetServerName(nodeName string) (string, error) {
-	/*
-		authOpts := gophercloud.AuthOptions{
-			IdentityEndpoint: "http://129.254.188.235/identity",
-			Username:         "admin",
-			Password:         "secret00secret",
-			DomainName:       "Default",
-			TenantName:       "demo",
-		}
-	*/
 	ao, err := openstack.AuthOptionsFromEnv()
 	if err != nil {
 		return "", errors.New(fmt.Sprintf("Failed to find auth options for openstack (node=%s, err=%v)", nodeName, err))

@@ -101,54 +101,13 @@ func (self *Machine) ConnectionTest() error {
 
 func (self *Machine) GetFullName(nodeName string) (string, error) {
 	if self.CSP == app.CSP_AWS {
-		return awsGetLocalHostname()
-		//		return self.getMetaDataLocalHostname()
+		return awsGetLocalHostname(self)
 	} else if self.CSP == app.CSP_OPENSTACK {
 		return openstackGetServerName(nodeName)
-		/*
-			authOpts := gophercloud.AuthOptions{
-				IdentityEndpoint: "http://129.254.188.235/identity",
-				Username:         "admin",
-				Password:         "secret00secret",
-				DomainName:       "Default",
-				TenantName:       "demo",
-			}
-
-			//ao, err := openstack.AuthOptionsFromEnv()
-			provider, err := openstack.AuthenticatedClient(authOpts)
-			if err != nil {
-				return "", errors.New(fmt.Sprintf("Failed to authenticate openstack (node=%s, err=%v)", name, err))
-			}
-
-			epOpts := gophercloud.EndpointOpts{Region: "RegionOne"}
-
-			client, err := openstack.NewComputeV2(provider, epOpts)
-			if err != nil {
-				return "", errors.New(fmt.Sprintf("Failed to get the openstack client (node=%s, err=%v)", name, err))
-			}
-			server, err := getServerByName(client, name)
-			if err != nil {
-				return "", errors.New(fmt.Sprintf("Failed to get the server by name (node=%s, err=%v)", name, err))
-			}
-
-			return server.Name, nil
-		*/
 	} else {
 		return "", errors.New(fmt.Sprintf("Failed to get the fullname: no CSP (node=%s)", nodeName))
 	}
 }
-
-/*
-func (self *Machine) getMetaDataLocalHostname() (string, error) {
-	var err error
-	var output string
-	if output, err = self.executeSSH("curl http://169.254.169.254/latest/meta-data/local-hostname"); err != nil {
-		return "", errors.New(fmt.Sprintf("Failed to get meta-data/local-hostname. (node=%s, err=%v)", self.Name, err))
-	}
-
-	return output, nil
-}
-*/
 
 /* bootstrap */
 func (self *Machine) bootstrap(networkCni app.NetworkCni, k8sVersion string, serviceType app.ServiceType) error {
