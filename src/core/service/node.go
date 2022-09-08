@@ -184,64 +184,6 @@ func AddNode(namespace string, clusterName string, req *app.NodeReq) (*model.Nod
 				cleanUpNodes(*provisioner)
 				return nil, errors.New(fmt.Sprintf("Failed to add node entity: %v)", err))
 			}
-
-			/*
-				cfg, err := config.LoadDefaultConfig(context.TODO())
-				if err != nil {
-					cleanUpNodes(*provisioner)
-					return nil, errors.New(fmt.Sprintf("Failed to add node entity. (cause='%v')", err))
-				}
-				svc := ec2.NewFromConfig(cfg)
-
-				at, err := newAWSTags(clusterName)
-				if err != nil {
-					cleanUpNodes(*provisioner)
-					return nil, errors.New(fmt.Sprintf("Failed to add node entity. (cause='%v')", err))
-				}
-
-				var awsErr error
-				for _, vm := range vms {
-					var awsRole string = "sykim-k8s-worker-role-for-ccm"
-
-					input := &ec2.AssociateIamInstanceProfileInput{
-						IamInstanceProfile: &types.IamInstanceProfileSpecification{
-							Name: &awsRole,
-						},
-						InstanceId: &vm.CspViewVmDetail.IId.SystemId,
-					}
-
-					var result *ec2.AssociateIamInstanceProfileOutput
-					result, awsErr = svc.AssociateIamInstanceProfile(context.TODO(), input)
-					if awsErr != nil {
-						break
-					}
-					logger.Infof("[%s.%s] AssociateIamInstanceProfile Result(%s)", namespace, clusterName, result)
-
-					awsErr = at.createTags(svc, vm.CspViewVmDetail.IId.SystemId, "owned", legacyTags)
-					if awsErr != nil {
-						break
-					}
-
-					for _, sgid := range vm.CspViewVmDetail.SecurityGroupIIds {
-						awsErr = at.createTags(svc, sgid.SystemId, "owned", nil)
-						if awsErr != nil {
-							break
-						}
-					}
-					if awsErr != nil {
-						break
-					}
-
-					awsErr = at.createTags(svc, vm.CspViewVmDetail.SubnetIID.SystemId, "owned", nil)
-					if awsErr != nil {
-						break
-					}
-				}
-				if awsErr != nil {
-					cleanUpNodes(*provisioner)
-					return nil, errors.New(fmt.Sprintf("Failed to add node entity. (cause='%v')", err))
-				}
-			*/
 		}
 	}
 

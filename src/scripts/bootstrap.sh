@@ -109,7 +109,7 @@ if [ "${CSP}" != "openstack" ]; then
 	PUBLIC_IP='$(dig +short myip.opendns.com @resolver1.opendns.com)'
 fi
 
-if [ "${SERVICE_TYPE}" == "mcks" ]; then
+if [ "${SERVICE_TYPE}" == "multi" ]; then
 
 if [ "${NETWORK_CNI}" == "kilo" ]; then 
 # install wireguard

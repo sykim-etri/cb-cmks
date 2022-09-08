@@ -271,7 +271,6 @@ func CreateCluster(namespace string, minorversion string, patchversion string, r
 
 	// kubernetes provision : deploy cloud-controller-manager when service_type is single
 	if cluster.ServiceType == app.ST_SINGLE {
-
 		// create tags for related resources on AWS
 		if cpLeaderCSP == app.CSP_AWS {
 			err := awsPrepareCCM(clusterName, mcis.VMs, provisioner)
@@ -280,73 +279,6 @@ func CreateCluster(namespace string, minorversion string, patchversion string, r
 				cleanUpCluster(*cluster, mcis)
 				return nil, errors.New(cluster.Status.Message)
 			}
-			/*
-				cfg, err := config.LoadDefaultConfig(context.TODO())
-				if err != nil {
-					cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to install cloud-controller-manager. (cloud-config=%s)", req.Config.Kubernetes.CloudConfig))
-					cleanUpCluster(*cluster, mcis)
-					return nil, errors.New(cluster.Status.Message)
-				}
-				//			aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""))
-				svc := ec2.NewFromConfig(cfg)
-
-				at, err := newAWSTags(clusterName)
-				if err != nil {
-					cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to install cloud-controller-manager. (cloud-config=%s)", req.Config.Kubernetes.CloudConfig))
-					cleanUpCluster(*cluster, mcis)
-					return nil, errors.New(cluster.Status.Message)
-				}
-
-				var awsErr error
-				for _, vm := range mcis.VMs {
-					var awsRole string = "sykim-k8s-worker-role-for-ccm"
-					_, exists := provisioner.ControlPlaneMachines[vm.Name]
-					if exists {
-						awsRole = "sykim-k8s-control-plane-role-for-ccm"
-					}
-
-					input := &ec2.AssociateIamInstanceProfileInput{
-						IamInstanceProfile: &types.IamInstanceProfileSpecification{
-							Name: &awsRole,
-						},
-						InstanceId: &vm.CspViewVmDetail.IId.SystemId,
-					}
-
-					var result *ec2.AssociateIamInstanceProfileOutput
-					result, awsErr = svc.AssociateIamInstanceProfile(context.TODO(), input)
-					if awsErr != nil {
-						break
-					}
-					logger.Infof("[%s.%s] AssociateIamInstanceProfile Result(%s)", namespace, clusterName, result)
-
-					//legacyTags := make(map[string]string)
-					//legacyTags[TagNameKubernetesClusterLegacy] = clusterName
-					awsErr = at.createTags(svc, vm.CspViewVmDetail.IId.SystemId, "owned", nil)
-					if awsErr != nil {
-						break
-					}
-
-					for _, sgid := range vm.CspViewVmDetail.SecurityGroupIIds {
-						awsErr = at.createTags(svc, sgid.SystemId, "owned", nil)
-						if awsErr != nil {
-							break
-						}
-					}
-					if awsErr != nil {
-						break
-					}
-
-					awsErr = at.createTags(svc, vm.CspViewVmDetail.SubnetIID.SystemId, "owned", nil)
-					if awsErr != nil {
-						break
-					}
-				}
-				if awsErr != nil {
-					cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to install cloud-controller-manager. (cloudConfig=%s)", req.Config.Kubernetes.CloudConfig))
-					cleanUpCluster(*cluster, mcis)
-					return nil, errors.New(cluster.Status.Message)
-				}
-			*/
 		}
 
 		// deploy cloud-controller-manager
