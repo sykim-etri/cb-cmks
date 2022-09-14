@@ -165,9 +165,9 @@ if [ "${CSP}" == "aws" ]; then
 
 echo -e '#!/bin/sh
 IFACE="$(ip route get 8.8.8.8 | awk \047{ print $5; exit }\047)"
-PUBLIC_IP="{{PUBLIC_IP}}"
 INSTANCE_ID="$(curl http://169.254.169.254/latest/meta-data/instance-id)"
-ifconfig ${IFACE}:1 ${PUBLIC_IP} netmask 255.255.255.255  broadcast 0.0.0.0 up
+#PUBLIC_IP="{{PUBLIC_IP}}"
+#ifconfig ${IFACE}:1 ${PUBLIC_IP} netmask 255.255.255.255  broadcast 0.0.0.0 up
 echo "KUBELET_EXTRA_ARGS=\"--hostname-override={{HOSTNAME}} --provider-id=aws:///${INSTANCE_ID}\"" > /etc/default/kubelet
 if [ -f "/etc/kubernetes/kubelet.conf" ]; then
   systemctl restart kubelet

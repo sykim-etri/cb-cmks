@@ -1,41 +1,58 @@
 #!/bin/bash
 
-# MYIP=$(ip a s ens3 | awk -F"[/ ]+" '/inet / {print $3}') && ./k8s-init.sh 10.244.0.0/16 10.96.0.0/12 cluster.local $MYIP
-# When run this script in k8s nodes, edit controlPlaneEndpoint's port(9998)
+POD_CIDR="$1"
+SERVICE_CIDR="$2"
+SERVICE_DNS_DOMAIN="$3"
+PUBLIC_IP="$4"
+PRIVATE_IP="$5"
+SERVICE_TYPE="$6"
 
 # kubeadm-config 정의
 # - controlPlaneEndpoint 에 LB 지정 (9998 포트)
-# - advertise-address 에 Public IP 지정
+# - advertise-address 에 Multi Cloud Type인 경우 Public IP 지정, Single Cloud Type인 경우 Private IP 지정
+
+ADVERTISE_ADDR=${PUBLIC_IP}
+if [ "${SERVICE_TYPE}" == "single" ]; then
+    ADVERTISE_ADDR=${PRIVATE_IP}
+fi
+
 cat << EOF > kubeadm-config.yaml
-apiVersion: kubeadm.k8s.io/v1beta2
-kind: InitConfiguration
-nodeRegistration:
-  kubeletExtraArgs:
-    cloud-provider: "external"
----
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
 imageRepository: k8s.gcr.io
-controlPlaneEndpoint: $4:9998
+controlPlaneEndpoint: ${PUBLIC_IP}:9998
 dns:
   type: CoreDNS
 apiServer:
   extraArgs:
-    advertise-address: $5
+    advertise-address: ${ADVERTISE_ADDR}
     authorization-mode: Node,RBAC
   certSANs:
-  - $4
-  - $5
+  - ${PUBLIC_IP}
+  - ${PRIVATE_IP}
 etcd:
   local:
     dataDir: /var/lib/etcd
 networking:
-  dnsDomain: $3
-  podSubnet: $1
-  serviceSubnet: $2
+  dnsDomain: ${SERVICE_DNS_DOMAIN}
+  podSubnet: ${POD_CIDR}
+  serviceSubnet: ${SERVICE_CIDR}
 controllerManager: {}
 scheduler: {}
 EOF
+
+if [ "${SERVICE_TYPE}" == "single" ]; then
+
+cat << EOF >> kubeadm-config.yaml
+---
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: InitConfiguration
+nodeRegistration:
+  kubeletExtraArgs:
+    cloud-provider: external
+EOF
+
+fi
 
 # Control-plane init
 sudo kubeadm init --v=5 --upload-certs --config kubeadm-config.yaml
