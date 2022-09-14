@@ -25,8 +25,10 @@ metadata:
   name: external-http-nginx-service
   annotations:
     service.beta.kubernetes.io/openstack-internal-load-balancer: "false"
-    #loadbalancer.openstack.org/subnet-id: "b05554bf-4018-4220-8a9d-6bbf9971939f"
-    loadbalancer.openstack.org/floating-network-id: "7344db18-89e9-46f9-a49d-5bc4c22b05e0"
+    loadbalancer.openstack.org/subnet-id: "b05554bf-4018-4220-8a9d-6bbf9971939f"
+    #loadbalancer.openstack.org/floating-network-id: "9c3994f3-317f-4d46-b44a-366d13465484"
+    #loadbalancer.openstack.org/network-id: "9c3994f3-317f-4d46-b44a-366d13465484"
+    #loadbalancer.openstack.org/floating-subnet: "config-openstack-regionone-subnet-cbpl61535c20om59qh70"
 spec:
   selector:
     app: nginx
