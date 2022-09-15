@@ -304,6 +304,14 @@ func (self *Provisioner) AssignNodeLabelAnnotation() error {
 	return nil
 }
 
+func (self *Provisioner) CleanupAllResources() error {
+	if _, err := self.Kubectl("delete all --all"); err != nil {
+		return errors.New(fmt.Sprintf("Failed to cleanup resources of Cluster '%s'. (cause=%v)", self.Cluster.Name, err))
+	}
+
+	return nil
+}
+
 /* new generate worker-node join command */
 func (self *Provisioner) NewWorkerJoinCommand() (string, error) {
 

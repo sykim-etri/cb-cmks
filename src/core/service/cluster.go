@@ -318,6 +318,12 @@ func DeleteCluster(namespace string, clusterName string) (*app.Status, error) {
 	// set a stauts
 	cluster.UpdatePhase(model.ClusterPhaseDeleting)
 
+	// delete all kubernetes resources
+	provisioner := provision.NewProvisioner(cluster)
+	if err := provisioner.CleanupAllResources(); err != nil {
+		logger.Infof("[%s.%s] Fail to cleanup all resources.", namespace, clusterName)
+	}
+
 	// delete a MCIS
 	if cluster.MCIS != "" {
 		mcis := tumblebug.NewMCIS(namespace, cluster.MCIS)
