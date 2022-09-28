@@ -179,10 +179,44 @@ func AddNode(namespace string, clusterName string, req *app.NodeReq) (*model.Nod
 	// kubernetes provisioning : add some actions for cloud-controller-manager
 	if provisioner.Cluster.ServiceType == app.ST_SINGLE {
 		if workerCSP == app.CSP_AWS {
-			err := awsPrepareCCM(clusterName, vms, provisioner)
-			if err != nil {
+			// check whether AWS IAM roles exists and are same
+			var bFail bool = false
+			var bEmptyOrDiff bool = false
+			var msgError string
+			var awsWorkerRole string
+
+			awsWorkerRole = req.Worker[0].Role
+			if awsWorkerRole == "" {
+				bEmptyOrDiff = true
+			}
+
+			if bEmptyOrDiff == false {
+				for _, worker := range req.Worker {
+					if awsWorkerRole != worker.Role {
+						bEmptyOrDiff = true
+						break
+					}
+				}
+			}
+
+			if bEmptyOrDiff == true {
+				bFail = true
+				msgError = "Role should be assigned"
+			} else {
+				if err := awsPrepareCCM(req.Worker[0].Connection, clusterName, vms, provisioner, "", awsWorkerRole); err != nil {
+					bFail = true
+					msgError = "Failed to prepare cloud-controller-manager"
+				} else {
+					// Success
+				}
+			}
+
+			if bFail == true {
 				cleanUpNodes(*provisioner)
-				return nil, errors.New(fmt.Sprintf("Failed to add node entity: %v)", err))
+				return nil, errors.New(fmt.Sprintf("Failed to add node entity: %v)", msgError))
+			} else {
+				// Success
+				logger.Infof("[%s.%s] CCM ready has been completed.", namespace, clusterName)
 			}
 		}
 	}

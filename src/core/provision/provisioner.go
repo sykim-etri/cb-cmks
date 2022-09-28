@@ -12,6 +12,7 @@ import (
 	"github.com/cloud-barista/cb-mcks/src/core/model"
 	"github.com/cloud-barista/cb-mcks/src/core/tumblebug"
 	"github.com/cloud-barista/cb-mcks/src/utils/lang"
+	logger "github.com/sirupsen/logrus"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -188,19 +189,6 @@ func (self *Provisioner) InitControlPlane(kubernetesConfigReq app.ClusterConfigK
 		return nil, "", errors.New("to initialize control-plane (the output not contains 'Your Kubernetes control-plane has initialized successfully')")
 	}
 
-	if self.Cluster.ServiceType == app.ST_SINGLE && len(kubernetesConfigReq.CloudConfig) > 0 {
-		var contents string
-		for _, keyValue := range kubernetesConfigReq.CloudConfig {
-			contents += keyValue.Key + "=" + keyValue.Value + "\n"
-		}
-
-		if _, err := self.leader.executeSSH("cd %s;./%s %s $'%s'", REMOTE_TARGET_PATH, "gen-cloud-config.sh", self.leader.CSP, contents); err != nil {
-			return nil, "", errors.New(fmt.Sprintf("Failed to initialize control-plane. (gen-cloud-config.sh, err=%v)", err))
-		}
-
-		self.leader.executeSSH("sudo cat %s/%s", REMOTE_TARGET_PATH, CCM_CLOUD_CONFIG_FILE)
-	}
-
 	ouput, _ := self.leader.executeSSH("sudo cat /etc/kubernetes/admin.conf")
 
 	return joinCmd, ouput, nil
@@ -232,8 +220,20 @@ func (self *Provisioner) InstallNetworkCni() error {
 }
 
 /* install cloud-controller-manager */
-func (self *Provisioner) InstallCcm() error {
+func (self *Provisioner) InstallCcm(cloudConfig string) error {
 
+	if self.Cluster.ServiceType != app.ST_SINGLE {
+		return errors.New(fmt.Sprintf("Not valid service type(%s)", self.Cluster.ServiceType))
+	}
+
+	// Generate cloud-config
+	if _, err := self.leader.executeSSH("cd %s;./%s '%s'", REMOTE_TARGET_PATH, "gen-cloud-config.sh", cloudConfig); err != nil {
+		return errors.New(fmt.Sprintf("Failed to execute gen-cloud-config.sh: %v", err))
+	}
+
+	logger.Infof("[%s.%s] Auto generated cloud-config => %s", self.Cluster.Namespace, self.Cluster.Name, cloudConfig)
+
+	// Apply CCM yaml files
 	ccmYamls := []string{}
 	if self.leader.CSP == app.CSP_AWS {
 		ccmYamls = append(ccmYamls, CCM_AWS_ROLE_SA_FILE)
@@ -306,7 +306,7 @@ func (self *Provisioner) AssignNodeLabelAnnotation() error {
 
 func (self *Provisioner) CleanupAllResources() error {
 	if _, err := self.Kubectl("delete all --all"); err != nil {
-		return errors.New(fmt.Sprintf("Failed to cleanup resources of Cluster '%s'. (cause=%v)", self.Cluster.Name, err))
+		return errors.New(fmt.Sprintf("Failed to clean up resources of Cluster '%s'. (cause=%v)", self.Cluster.Name, err))
 	}
 
 	return nil
@@ -326,6 +326,9 @@ func (self *Provisioner) NewWorkerJoinCommand() (string, error) {
 
 /* execute kubectl */
 func (self *Provisioner) Kubectl(format string, a ...interface{}) (string, error) {
+	if self.leader == nil {
+		return "", errors.New(fmt.Sprintf("No valid control plane"))
+	}
 
 	command := fmt.Sprintf(format, a...)
 	command = fmt.Sprintf("sudo kubectl %s --kubeconfig=/etc/kubernetes/admin.conf", command)

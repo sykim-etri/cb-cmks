@@ -73,6 +73,15 @@ func (self *MCIS) REFINE() error {
 	return nil
 }
 
+func (self *MCIS) FindVM(name string) *VM {
+	for _, vm := range self.VMs {
+		if vm.Name == name {
+			return &vm
+		}
+	}
+	return nil
+}
+
 /* VM */
 func (self *VM) GET() (bool, error) {
 

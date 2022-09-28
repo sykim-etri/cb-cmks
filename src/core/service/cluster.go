@@ -9,6 +9,7 @@ import (
 	"github.com/cloud-barista/cb-mcks/src/core/app"
 	"github.com/cloud-barista/cb-mcks/src/core/model"
 	"github.com/cloud-barista/cb-mcks/src/core/provision"
+	"github.com/cloud-barista/cb-mcks/src/core/spider"
 	"github.com/cloud-barista/cb-mcks/src/core/tumblebug"
 	"github.com/cloud-barista/cb-mcks/src/utils/lang"
 
@@ -271,23 +272,89 @@ func CreateCluster(namespace string, minorversion string, patchversion string, r
 
 	// kubernetes provision : deploy cloud-controller-manager when service_type is single
 	if cluster.ServiceType == app.ST_SINGLE {
-		// create tags for related resources on AWS
+		var bFail bool = false
+		var cloudConfig string
+
 		if cpLeaderCSP == app.CSP_AWS {
-			err := awsPrepareCCM(clusterName, mcis.VMs, provisioner)
-			if err != nil {
-				cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to prepare cloud-controller-manager: %v", err))
-				cleanUpCluster(*cluster, mcis)
-				return nil, errors.New(cluster.Status.Message)
+			// check whether AWS IAM roles exists and are same
+			var bEmptyOrDiff bool = false
+			var awsCpRole, awsWorkerRole string
+
+			awsCpRole = req.ControlPlane[0].Role
+			awsWorkerRole = req.Worker[0].Role
+			if awsCpRole == "" || awsWorkerRole == "" {
+				bEmptyOrDiff = true
 			}
+
+			if bEmptyOrDiff == false {
+				for _, cp := range req.ControlPlane {
+					if awsCpRole != cp.Role {
+						bEmptyOrDiff = true
+						break
+					}
+				}
+			}
+
+			if bEmptyOrDiff == false {
+				for _, worker := range req.Worker {
+					if awsWorkerRole != worker.Role {
+						bEmptyOrDiff = true
+						break
+					}
+				}
+			}
+
+			if bEmptyOrDiff == true {
+				bFail = true
+				cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to prepare cloud-controller-manager: role should be assigned"))
+			} else {
+				if err := awsPrepareCCM(req.ControlPlane[0].Connection, clusterName, mcis.VMs, provisioner, awsCpRole, awsWorkerRole); err != nil {
+					bFail = true
+					cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to prepare cloud-controller-manager: %v", err))
+				} else {
+					if cloudConfig, err = awsBuildCloudConfig(req.ControlPlane[0].Connection); err != nil {
+						bFail = true
+						cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to get cloud config: %v", err))
+					} else {
+						// Success
+					}
+				}
+
+			}
+		} else if cpLeaderCSP == app.CSP_OPENSTACK {
+			var configLB []spider.KeyValue
+
+			cpVm := mcis.FindVM(cluster.CpLeader)
+			if cpVm != nil {
+				configLB = append(configLB, spider.KeyValue{"subnet-id", cpVm.CspViewVmDetail.SubnetIID.SystemId})
+			}
+
+			if cloudConfig, err = openstackBuildCloudConfig(req.ControlPlane[0].Connection, configLB); err != nil {
+				bFail = true
+				cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to get cloud config: %v", err))
+			} else {
+				// Success
+			}
+		} else {
+			// Not supported CSP
 		}
 
 		// deploy cloud-controller-manager
-		if err = provisioner.InstallCcm(); err != nil {
-			cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to install cloud-controller-manager. (cloudConfig=%s)", req.Config.Kubernetes.CloudConfig))
+		if bFail == false {
+			if err = provisioner.InstallCcm(cloudConfig); err != nil {
+				bFail = true
+				cluster.FailReason(model.SetupCCMFailedReason, fmt.Sprintf("Failed to install cloud-controller-manager: %v", err))
+			} else {
+				// Success
+			}
+		}
+
+		if bFail == true {
 			cleanUpCluster(*cluster, mcis)
 			return nil, errors.New(cluster.Status.Message)
+		} else {
+			logger.Infof("[%s.%s] CCM installation has been completed.", namespace, clusterName)
 		}
-		logger.Infof("[%s.%s] CCM installation has been completed.", namespace, clusterName)
 	}
 
 	// save nodes metadata & update status
@@ -321,7 +388,7 @@ func DeleteCluster(namespace string, clusterName string) (*app.Status, error) {
 	// delete all kubernetes resources
 	provisioner := provision.NewProvisioner(cluster)
 	if err := provisioner.CleanupAllResources(); err != nil {
-		logger.Infof("[%s.%s] Fail to cleanup all resources.", namespace, clusterName)
+		logger.Infof("[%s.%s] Fail to clean up all resources: err=%v", namespace, clusterName, err)
 	}
 
 	// delete a MCIS

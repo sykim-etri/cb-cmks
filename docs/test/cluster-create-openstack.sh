@@ -116,14 +116,14 @@ EOREQ
 				{
 					"connection": "config-openstack-regionone",
 					"count": 1,
-					"spec": "ds4G"
+					"spec": "ds2G"
 				}
 			],
 			"worker": [
 				{
 					"connection": "config-openstack-regionone",
 					"count": 2,
-					"spec": "ds4G"
+					"spec": "ds2G"
 				}
 			]
 		}

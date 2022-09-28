@@ -55,7 +55,8 @@ create() {
 				{
 					"connection": "config-aws-ap-northeast-2",
 					"count": 1,
-					"spec": "t2.medium"
+					"spec": "t2.medium",
+					"role": "sykim-k8s-worker-role-for-ccm"
 				}
 			]
 		}

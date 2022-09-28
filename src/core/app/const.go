@@ -78,6 +78,7 @@ type NodeSetReq struct {
 	Connection string `json:"connection" example:"config-aws-ap-northeast-2"`
 	Count      int    `json:"count" example:"3"`
 	Spec       string `json:"spec" example:"t2.medium"`
+	Role       string `json:"role"`
 }
 
 type ClusterConfigReq struct {
@@ -85,11 +86,10 @@ type ClusterConfigReq struct {
 }
 
 type ClusterConfigKubernetesReq struct {
-	NetworkCni       NetworkCni  `json:"networkCni" example:"kilo" enums:"canal,kilo,flannel,calico" default1:"kilo"`
-	PodCidr          string      `json:"podCidr" example:"10.244.0.0/16"`
-	ServiceCidr      string      `json:"serviceCidr" example:"10.96.0.0/12"`
-	ServiceDnsDomain string      `json:"serviceDnsDomain" example:"cluster.local"`
-	CloudConfig      []*KeyValue `json:"cloudConfig,omitempty"`
+	NetworkCni       NetworkCni `json:"networkCni" example:"kilo" enums:"canal,kilo,flannel,calico" default1:"kilo"`
+	PodCidr          string     `json:"podCidr" example:"10.244.0.0/16"`
+	ServiceCidr      string     `json:"serviceCidr" example:"10.96.0.0/12"`
+	ServiceDnsDomain string     `json:"serviceDnsDomain" example:"cluster.local"`
 }
 
 type KeyValue struct {

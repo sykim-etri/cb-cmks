@@ -54,38 +54,6 @@ echo "- Service type               is '${v_SERVICE_TYPE}'"
 create() {
 
 	if [ "$MCKS_CALL_METHOD" == "REST" ]; then
-		v_CLUSTER_CONFIG_REQ=$(cat << EOREQ
-			"config": {
-				"kubernetes": {
-					"networkCni": "flannel",
-					"podCidr": "10.244.0.0/16",
-					"serviceCidr": "10.96.0.0/12",
-					"serviceDnsDomain": "cluster.local"
-EOREQ
-			);
-
-                if [ "$v_SERVICE_TYPE" != "single" ]; then
-                        v_CLUSTER_CONFIG_REQ+=$(cat << EOREQ
-				}
-			}
-EOREQ
-			);
-
-		else
-			v_CLUSTER_CONFIG_REQ+=$(cat << EOREQ
-					,
-					"cloudConfig": [
-						{
-							"key": "Zone",
-							"value": "ap-northeast-2"
-						}
-					] 
-				}
-			}
-EOREQ
-			);
-		fi
-
 		#echo "v_CLUSTER_CONFIG_REQ: "${v_CLUSTER_CONFIG_REQ}
 		#echo ${REQ} | jq
 		resp=$(curl -sX POST ${c_URL_MCKS_NS}/clusters?minorversion=1.23 -H "${c_CT}" -d @- <<EOF
@@ -95,19 +63,28 @@ EOREQ
 			"installMonAgent": "",
 			"description": "",
 			"serviceType": "${v_SERVICE_TYPE}",
-			${v_CLUSTER_CONFIG_REQ},
+			"config": {
+				"kubernetes": {
+					"networkCni": "flannel",
+					"podCidr": "10.244.0.0/16",
+					"serviceCidr": "10.96.0.0/12",
+					"serviceDnsDomain": "cluster.local"
+				}
+			},
 			"controlPlane": [
 				{
 					"connection": "config-aws-ap-northeast-2",
 					"count": 1,
-					"spec": "t2.medium"
+					"spec": "t2.medium",
+					"role": "sykim-k8s-control-plane-role-for-ccm"
 				}
 			],
 			"worker": [
 				{
 					"connection": "config-aws-ap-northeast-2",
 					"count": 2,
-					"spec": "t2.medium"
+					"spec": "t2.medium",
+					"role": "sykim-k8s-worker-role-for-ccm"
 				}
 			]
 		}
