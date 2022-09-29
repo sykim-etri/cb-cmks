@@ -54,56 +54,6 @@ echo "- Service type               is '${v_SERVICE_TYPE}'"
 create() {
 
 	if [ "$MCKS_CALL_METHOD" == "REST" ]; then
-		v_CLUSTER_CONFIG_REQ=$(cat << EOREQ
-			"config": {
-				"kubernetes": {
-					"networkCni": "flannel",
-					"podCidr": "10.244.0.0/16",
-					"serviceCidr": "10.96.0.0/12",
-					"serviceDnsDomain": "cluster.local"
-EOREQ
-			);
-
-                if [ "$v_SERVICE_TYPE" != "single" ]; then
-                        v_CLUSTER_CONFIG_REQ+=$(cat << EOREQ
-				}
-			}
-EOREQ
-			);
-
-		else
-			v_CLUSTER_CONFIG_REQ+=$(cat << EOREQ
-					,
-					"cloudConfig": [
-						{
-							"key": "auth-url",
-							"value": "http://129.254.188.235/identity"
-						},
-						{
-							"key": "username",
-							"value": "admin"
-						},
-						{
-							"key": "password",
-							"value": "secret00secret"
-						},
-						{
-							"key": "domain-name",
-							"value": "default"
-						},
-						{
-							"key": "tenant-name",
-							"value": "demo"
-						}
-					]
-				}
-			}
-EOREQ
-			);
-		fi
-
-		#echo "v_CLUSTER_CONFIG_REQ: "${v_CLUSTER_CONFIG_REQ}
-		#echo ${REQ} | jq
 		resp=$(curl -sX POST ${c_URL_MCKS_NS}/clusters?minorversion=1.23 -H "${c_CT}" -d @- <<EOF
 		{
 			"name": "${v_CLUSTER_NAME}",
@@ -111,19 +61,26 @@ EOREQ
 			"installMonAgent": "",
 			"description": "",
 			"serviceType": "${v_SERVICE_TYPE}",
-			${v_CLUSTER_CONFIG_REQ},
+			"config": {
+				"kubernetes": {
+					"networkCni": "canal",
+					"podCidr": "10.244.0.0/16",
+					"serviceCidr": "10.96.0.0/12",
+					"serviceDnsDomain": "cluster.local"
+				}
+			},
 			"controlPlane": [
 				{
-					"connection": "config-openstack-regionone",
+					"connection": "config-aws-ap-northeast-1",
 					"count": 1,
-					"spec": "ds4G"
+					"spec": "t2.medium"
 				}
 			],
 			"worker": [
 				{
-					"connection": "config-openstack-regionone",
-					"count": 2,
-					"spec": "ds4G"
+					"connection": "config-gcp-asia-northeast3",
+					"count": 1,
+					"spec": "n1-standard-2"
 				}
 			]
 		}
@@ -140,6 +97,7 @@ EOF
 					"label": "",
 					"installMonAgent": "no",                              
 					"description": "",
+					"serviceType": "'${v_SERVICE_TYPE}'",
 					"config": {
 						"kubernetes": {
 							"networkCni": "canal",

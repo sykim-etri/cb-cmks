@@ -58,7 +58,6 @@ type Cluster struct {
 	CreatedTime     string          `json:"createdTime" example:"2022-01-02T12:00:00Z" default:""`
 	ServiceType     app.ServiceType `json:"serviceType" enums:"multi,single" default:"multi"`
 	Nodes           []*Node         `json:"nodes"`
-	//CloudConfig     []*app.KeyValue `json:"cloudConfig,omitempty"`
 }
 
 type ClusterStatus struct {
