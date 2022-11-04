@@ -27,7 +27,7 @@ const (
 
 type Machine struct {
 	Name       string
-	FullName   string
+	NameInCsp  string
 	PublicIP   string
 	PrivateIP  string
 	Username   string

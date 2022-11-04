@@ -1,19 +1,10 @@
 package provision
 
-import (
-	"errors"
-	"fmt"
-
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
-	"github.com/gophercloud/gophercloud/pagination"
-)
-
 func awsGetLocalHostname(m *Machine) (string, error) {
 	return m.executeSSH("curl http://169.254.169.254/latest/meta-data/local-hostname")
 }
 
+/*
 func openstackGetServerName(nodeName string) (string, error) {
 	ao, err := openstack.AuthOptionsFromEnv()
 	if err != nil {
@@ -70,3 +61,4 @@ func getServerByName(client *gophercloud.ServiceClient, name string) (*servers.S
 
 	return &serverList[0], nil
 }
+*/

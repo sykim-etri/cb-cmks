@@ -103,7 +103,8 @@ func (self *Machine) GetFullName(nodeName string) (string, error) {
 	if self.CSP == app.CSP_AWS {
 		return awsGetLocalHostname(self)
 	} else if self.CSP == app.CSP_OPENSTACK {
-		return openstackGetServerName(nodeName)
+		return self.NameInCsp, nil
+		//return openstackGetServerName(nodeName)
 	} else {
 		return "", errors.New(fmt.Sprintf("Failed to get the fullname: no CSP (node=%s)", nodeName))
 	}

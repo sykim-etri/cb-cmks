@@ -117,7 +117,11 @@ func (self *Provisioner) BindVM(vms []tumblebug.VM) ([]*model.Node, error) {
 			machine.Zone = lang.NVL(vm.Region.Zone, machine.Zone)
 			machine.Spec = vm.CspViewVmDetail.VMSpecName
 			nodes = append(nodes, machine.NewNode())
-			machine.FullName = ""
+			nameInCsp, err := vm.GetNameInCsp()
+			if err != nil {
+				return nil, errors.New(fmt.Sprintf("Can't get a name in CSP of node '%s'", vm.Name))
+			}
+			machine.NameInCsp = nameInCsp
 		} else {
 			return nil, errors.New(fmt.Sprintf("Can't be found node by name '%s'", vm.Name))
 		}

@@ -89,6 +89,22 @@ func (self *VM) GET() (bool, error) {
 
 }
 
+func (self *VM) GetNameInCsp() (string, error) {
+	var idsInDetail struct {
+		IdInTb    string `json:"idInTb"`
+		IdInSp    string `json:"idInSp"`
+		IdInCsp   string `json:"idInCsp"`
+		NameInCsp string `json:"nameInCsp"`
+	}
+
+	_, err := self.execute(http.MethodGet, fmt.Sprintf("/ns/%s/mcis/%s/vm/%s?option=idsInDetail", self.Namespace, self.mcisName, self.Name), nil, &idsInDetail)
+	if err != nil {
+		return "", err
+	}
+
+	return idsInDetail.NameInCsp, nil
+}
+
 func (self *VM) POST() error {
 
 	_, err := self.execute(http.MethodPost, fmt.Sprintf("/ns/%s/mcis/%s/vm", self.Namespace, self.mcisName), self, &self)
